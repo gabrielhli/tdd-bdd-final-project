@@ -27,7 +27,7 @@ import os
 import logging
 import unittest
 from decimal import Decimal
-from service.models import Product, Category, db
+from service.models import Product, Category, db, DataValidationError
 from service import app
 from tests.factories import ProductFactory
 
@@ -193,6 +193,8 @@ class TestProductModel(unittest.TestCase):
             product.create()
         category = products[0].category
         count = len([product for product in products if product.category == category])
+
+        # Look for product by category
         found = Product.find_by_category(category)
         self.assertEqual(found.count(), count)
         for product in found:
@@ -205,6 +207,7 @@ class TestProductModel(unittest.TestCase):
             product.create()
         price = products[0].price
         count = len([product for product in products if product.price == price])
+
         # Look for products by price
         found = Product.find_by_price(price)
         self.assertEqual(found.count(), count)
@@ -221,3 +224,84 @@ class TestProductModel(unittest.TestCase):
 
         found = Product.find_by_price("5")
         self.assertEqual(found.count(), 1)
+
+    def test_update_validation_error(self):
+        """It should throw error when updating with no id"""
+        product = ProductFactory()
+        product.id = None
+        product.create()
+        self.assertIsNotNone(product.id)
+
+        # set values to missing
+        product.description = "This is a test"
+        product.id = None
+        self.assertRaises(DataValidationError, product.update)
+
+    def test_deserialize(self):
+        """It should deserialize"""
+        product = ProductFactory()
+        product.id = None
+        product.create()
+        self.assertIsNotNone(product.id)
+
+        prod_dict = {
+            "name": "Test",
+            "description": "This is a test",
+            "price": 5.0,
+            "available": True,
+            "category": "UNKNOWN"
+        }
+        copy = product.deserialize(prod_dict)
+
+        self.assertEqual(copy.name, product.name)
+        self.assertEqual(copy.description, product.description)
+        self.assertEqual(copy.price, product.price)
+        self.assertEqual(copy.category, product.category)
+
+    def test_deserialize_available_error(self):
+        """It should throw Error with invalid available in deserialize"""
+        product = ProductFactory()
+        product.id = None
+        product.create()
+        self.assertIsNotNone(product.id)
+
+        prod_dict = {
+            "name": "Test",
+            "description": "This is a test",
+            "price": 5.0,
+            "available": 1,
+            "category": "UNKNOWN"
+        }
+        self.assertRaises(DataValidationError, product.deserialize, prod_dict)
+
+    def test_deserialize_typeerror(self):
+        """It should throw TypeError with invalid data in deserialize"""
+        product = ProductFactory()
+        product.id = None
+        product.create()
+        self.assertIsNotNone(product.id)
+
+        prod_dict = {
+            "name": "Test",
+            "description": "This is a test",
+            "price": 5.0,
+            "available": True,
+            "category": 1
+        }
+        self.assertRaises(DataValidationError, product.deserialize, prod_dict)
+
+    def test_deserialize_attribute_error(self):
+        """It should throw TypeError with invalid attribute data in deserialize"""
+        product = ProductFactory()
+        product.id = None
+        product.create()
+        self.assertIsNotNone(product.id)
+
+        prod_dict = {
+            "name": "Test",
+            "description": "This is a test",
+            "price": 5.0,
+            "available": True,
+            "category": "1"
+        }
+        self.assertRaises(DataValidationError, product.deserialize, prod_dict)
